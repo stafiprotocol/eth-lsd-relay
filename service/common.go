@@ -256,6 +256,24 @@ func (s *Service) getUserNodePlatformFromPriorityFee(latestDistributeHeight, tar
 		totalPlatformEthDeci = totalPlatformEthDeci.Add(platformFeeDeci)
 	}
 
+	// Calc other received rewards
+	feePoolBalance, err := s.connection.Eth1Client().BalanceAt(context.Background(), s.feePoolAddress, big.NewInt(int64(targetEth1BlockHeight)))
+	if err != nil {
+		return decimal.Zero, decimal.Zero, decimal.Zero, nil, err
+	}
+	feePoolBalanceDeci := decimal.NewFromBigInt(feePoolBalance, 0)
+	otherRewards := feePoolBalanceDeci.Sub(totalUserEthDeci.Add(totalNodeEthDeci).Add(totalPlatformEthDeci))
+	if otherRewards.GreaterThan(decimal.Zero) {
+		platformFeeDeci := otherRewards.Mul(s.platformCommissionRate)
+		userRewardDeci := otherRewards.Sub(platformFeeDeci)
+
+		totalUserEthDeci = totalUserEthDeci.Add(userRewardDeci)
+		totalPlatformEthDeci = totalPlatformEthDeci.Add(platformFeeDeci)
+	}
+	if !feePoolBalanceDeci.Equal(totalUserEthDeci.Add(totalNodeEthDeci).Add(totalPlatformEthDeci)) {
+		return decimal.Zero, decimal.Zero, decimal.Zero, nil, fmt.Errorf("feePoolBalanceDeci not equal to totalUserEthDeci + totalNodeEthDeci + totalPlatformEthDeci, feePoolBalanceDeci: %s, totalUserEthDeci: %s, totalNodeEthDeci: %s, totalPlatformEthDeci: %s", feePoolBalanceDeci, totalUserEthDeci, totalNodeEthDeci, totalPlatformEthDeci)
+	}
+
 	return totalUserEthDeci, totalNodeEthDeci, totalPlatformEthDeci, nodeNewRewardsMap, nil
 }
 
